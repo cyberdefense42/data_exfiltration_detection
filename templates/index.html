@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Exfiltration Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        #log-form {
+            margin-bottom: 20px;
+        }
+        #log-form h2 {
+            color: #3498db;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #2ecc71;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #27ae60;
+        }
+        #prediction-result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+        }
+        #prediction-result h3 {
+            color: #e74c3c;
+            margin-top: 0;
+        }
+        canvas {
+            max-width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Data Exfiltration Detection</h1>
+        
+        <div id="log-form">
+            <h2>Enter Log Data</h2>
+            <input type="datetime-local" id="timestamp">
+            <input type="text" id="source_ip" placeholder="Source IP">
+            <input type="text" id="destination_ip" placeholder="Destination IP">
+            <input type="number" id="source_port" placeholder="Source Port">
+            <input type="number" id="destination_port" placeholder="Destination Port">
+            <select id="protocol">
+                <option value="">Select Protocol</option>
+                <option value="TCP">TCP</option>
+                <option value="UDP">UDP</option>
+                <option value="HTTP">HTTP</option>
+                <option value="HTTPS">HTTPS</option>
+                <option value="ICMP">ICMP</option>
+            </select>
+            <input type="number" id="bytes_sent" placeholder="Bytes Sent">
+            <input type="number" id="bytes_received" placeholder="Bytes Received">
+            <select id="action">
+                <option value="">Select Action</option>
+                <option value="allow">Allow</option>
+                <option value="deny">Deny</option>
+                <option value="drop">Drop</option>
+            </select>
+            <button onclick="submitLog()">Submit</button>
+        </div>
+
+        <div id="prediction-result"></div>
+        
+        <canvas id="probabilityChart"></canvas>
+    </div>
+
+    <script>
+        let chart;
+
+        function submitLog() {
+            const logData = {
+                timestamp: document.getElementById('timestamp').value,
+                source_ip: document.getElementById('source_ip').value,
+                destination_ip: document.getElementById('destination_ip').value,
+                source_port: parseInt(document.getElementById('source_port').value),
+                destination_port: parseInt(document.getElementById('destination_port').value),
+                protocol: document.getElementById('protocol').value,
+                bytes_sent: parseInt(document.getElementById('bytes_sent').value),
+                bytes_received: parseInt(document.getElementById('bytes_received').value),
+                action: document.getElementById('action').value
+            };
+
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(logData),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('prediction-result');
+                const isExfiltration = data.prediction === 1;
+                const backgroundColor = isExfiltration ? '#ffecb3' : '#e8f5e9';
+                const textColor = isExfiltration ? '#ff6f00' : '#1b5e20';
+                resultDiv.innerHTML = `
+                    <h3>Prediction Result:</h3>
+                    <p style="color: ${textColor}; font-weight: bold;">
+                        Exfiltration Detected: ${isExfiltration ? 'Yes' : 'No'}
+                    </p>
+                    <p>Probability: ${(data.probability * 100).toFixed(2)}%</p>
+                `;
+                resultDiv.style.backgroundColor = backgroundColor;
+                updateChart(data.probability);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+
+        function updateChart(probability) {
+            if (chart) {
+                chart.data.labels.push(new Date().toLocaleTimeString());
+                chart.data.datasets[0].data.push(probability);
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift();
+                    chart.data.datasets[0].data.shift();
+                }
+                chart.update();
+            } else {
+                const ctx = document.getElementById('probabilityChart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [new Date().toLocaleTimeString()],
+                        datasets: [{
+                            label: 'Exfiltration Probability',
+                            data: [probability],
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 1
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Exfiltration Probability Over Time'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
