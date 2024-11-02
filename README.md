@@ -164,7 +164,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-Vishal Sharma - [your.email@example.com](mailto:your.email@example.com)
+Vishal Sharma - [your.email@example.com](mailto:vishal.sharma@whu.edu)
 
 Project Link: [https://github.com/vishalsharma1987/data_exfiltration_detection](https://github.com/vishalsharma1987/data_exfiltration_detection)
 
